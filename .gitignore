@@ -1,0 +1,12 @@
+# Editor-only type stubs herdr regenerates in each mod folder (~800 KB each)
+gpui-kit.d.ts
+herdr.d.ts
+
+# herdr runtime / machine-local state — never part of the recipe
+*.error
+*.sock
+shared.json
+window.json
+view.json
+seen.json
+installed.json
