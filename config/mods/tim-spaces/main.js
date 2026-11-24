@@ -67,7 +67,7 @@ export function tone(t, status) {
 
 export default class Spaces extends View {
   init(_props, cx) {
-    if (props()?.assign != null || props()?.taskMenu != null) return; // bare overlay instances
+    if (props()?.assign != null || props()?.taskMenu != null || props()?.agentMenu != null) return; // bare overlay instances
     this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked }, null: not a repo
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
@@ -374,6 +374,7 @@ export default class Spaces extends View {
       .when(!a.focused, (el) => el.hover((s) => s.bg(t.hover)))
       .cursor_pointer()
       .on_click(() => run("pane.focus", { pane: a.pane }))
+      .on_mouse_down("right", () => this.agentMenu(a))
       .when(Boolean(pic), (el) => el.child(pic))
       .child(div().flex_1().min_w(0).truncate().text_color(idle ? t.muted : t.foreground).child(name))
       .child(this.agentStatus(t, a.status));
@@ -693,6 +694,23 @@ export default class Spaces extends View {
       .child(item("Delete task", "x", () => this.deleteTask(id), true));
   }
 
+  // Right-click an agent: a 2-item menu. Rename acts on the tab (what the row's label shows); Close ends this agent's pane.
+  agentMenu(a) {
+    openOverlay({ mod: "tim-spaces", kind: "popup", width: 180, height: 92, props: { agentMenu: { tab: a.tab, pane: a.pane } } });
+  }
+  agentMenuPopup(t) {
+    const { tab, pane } = props().agentMenu;
+    const item = (label, icon, act, danger = false) => h_flex()
+      .id(`agentmenu-${label}`).h(31).px(8).gap(9).rounded(7).items_center().cursor_pointer()
+      .text_color(danger ? t.blocked : t.foreground).hover((el) => el.bg(t.hover))
+      .on_click((_e, cx) => { closeOverlay(props().overlay); act(); })
+      .child(svg(`mods/workspace-chrome/${icon}.svg`).size(14).flex_none().text_color(danger ? t.blocked : t.muted))
+      .child(div().flex_1().truncate().child(label));
+    return v_flex().w_full().p(5).bg(t.popover).text_size(12.8)
+      .child(item("Rename", "square-pen", () => run("tab.rename", { id: tab })))
+      .child(item("Close", "x", () => run("pane.close", { pane }), true));
+  }
+
   // A task's header: fold chevron, name (click to rename), count, delete; drag to reorder, drop a space to add it.
   taskHeader(task, t) {
     const folded = this.foldedSpaces.has(task.id);
@@ -803,6 +821,7 @@ export default class Spaces extends View {
     const t = theme();
     if (props()?.assign != null) return this.assignPopup(t);
     if (props()?.taskMenu != null) return this.taskMenuPopup(t);
+    if (props()?.agentMenu != null) return this.agentMenuPopup(t);
     const collapsed = narrow();
     // The right-click menu lives in its own overlay; it asks for a rename through shared state, picked up here.
     const wantRename = shared("tim-spaces.renaming");
