@@ -679,7 +679,7 @@ export default class Spaces extends View {
   }
 
   taskMenu(id) {
-    openOverlay({ mod: "tim-spaces", kind: "popup", width: 180, height: 92, props: { taskMenu: id } });
+    openOverlay({ mod: "tim-spaces", kind: "popup", width: 180, height: 120, props: { taskMenu: id } });
   }
   taskMenuPopup(t) {
     const id = props().taskMenu;
@@ -691,6 +691,7 @@ export default class Spaces extends View {
       .child(div().flex_1().truncate().child(label));
     return v_flex().w_full().p(5).bg(t.popover).text_size(12.8)
       .child(item("Rename", "square-pen", () => setShared("tim-spaces.renaming", id)))
+      .child(item("New space", "plus", () => { const before = spaces().map((s) => s.id); run("space.new"); setShared("tim-spaces.newInTask", { task: id, before, at: Date.now() }); }))
       .child(div().mx(7).my(4).h(1).bg(t.border))
       .child(item("Delete task", "x", () => this.deleteTask(id)));
   }
@@ -831,6 +832,14 @@ export default class Spaces extends View {
       const task = this.tasks().find((x) => x.id === wantRename);
       if (task) this.startRename(task.id, task.name);
       else setShared("tim-spaces.renaming", null);
+    }
+    // A task-menu "New space" ran space.new; assign the newly-appeared space to that task.
+    // shortcut: takes the first space absent when the menu ran; gives up after 5s if none appears.
+    const newInTask = shared("tim-spaces.newInTask");
+    if (newInTask) {
+      const created = spaces().find((s) => !newInTask.before.includes(s.id));
+      if (created) { this.assignSpaceToTask(created.id, newInTask.task); setShared("tim-spaces.newInTask", null); }
+      else if (Date.now() - newInTask.at > 5000) setShared("tim-spaces.newInTask", null);
     }
     const palette = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1"];
     const sp = spaces();
