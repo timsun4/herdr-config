@@ -691,7 +691,8 @@ export default class Spaces extends View {
       .child(div().flex_1().truncate().child(label));
     return v_flex().w_full().p(5).bg(t.popover).text_size(12.8)
       .child(item("Rename", "square-pen", () => setShared("tim-spaces.renaming", id)))
-      .child(item("Delete task", "x", () => this.deleteTask(id), true));
+      .child(div().mx(7).my(4).h(1).bg(t.border))
+      .child(item("Delete task", "x", () => this.deleteTask(id)));
   }
 
   // Right-click an agent: a 2-item menu. Rename acts on the tab (what the row's label shows); Close ends this agent's pane.
@@ -708,7 +709,8 @@ export default class Spaces extends View {
       .child(div().flex_1().truncate().child(label));
     return v_flex().w_full().p(5).bg(t.popover).text_size(12.8)
       .child(item("Rename", "square-pen", () => run("tab.rename", { id: tab })))
-      .child(item("Close", "x", () => run("pane.close", { pane }), true));
+      .child(div().mx(7).my(4).h(1).bg(t.border))
+      .child(item("Close", "x", () => run("pane.close", { pane })));
   }
 
   // A task's header: fold chevron, name (click to rename), count, delete; drag to reorder, drop a space to add it.
