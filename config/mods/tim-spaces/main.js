@@ -79,7 +79,7 @@ export default class Spaces extends View {
       cx.timer.after(600, () => this.editInput.focus());
       return;
     }
-    if (props()?.assign != null || props()?.taskMenu != null || props()?.agentMenu != null || props()?.closeAll != null || props()?.ungroupedMenu != null) return; // bare overlay instances
+    if (props()?.assign != null || props()?.taskMenu != null || props()?.agentMenu != null || props()?.closeAll != null || props()?.ungroupedMenu != null || props()?.spaceMenu != null) return; // bare overlay instances
     this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked }, null: not a repo
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
@@ -307,8 +307,29 @@ export default class Spaces extends View {
   }
 
   menu(w) {
-    // A popup is as tall as its items; height is only the most.
-    openOverlay({ mod: "menu", kind: "popup", width: 200, height: 260, props: { tab: "space", target: { id: w.id } } });
+    // Reuse the git status the sidebar already computed so the worktree items show at once,
+    // instead of after the shipped menu's own async git check (which pops them in and shifts Close).
+    const g = this.git[where(w, panes())];
+    const git = g == null ? null : (g.linked ? "linked" : "main");
+    openOverlay({ mod: "tim-spaces", kind: "popup", width: 200, height: 196, props: { spaceMenu: { id: w.id, git } } });
+  }
+  spaceMenuPopup(t) {
+    const { id, git } = props().spaceMenu;
+    const item = (label, icon, act) => h_flex()
+      .id(`spacemenu-${label}`).h(31).px(8).gap(9).rounded(7).items_center().cursor_pointer()
+      .text_color(t.foreground).hover((el) => el.bg(t.hover))
+      .on_click((_e, cx) => { closeOverlay(props().overlay); act(); })
+      .child(svg(`mods/workspace-chrome/${icon}.svg`).size(14).flex_none().text_color(t.muted))
+      .child(div().flex_1().truncate().child(label));
+    const worktree = (label, action, w, h) => item(label, "git-branch", () => openOverlay({ mod: "worktree", kind: "dialog", width: w, height: h, props: { space: id, action } }));
+    return v_flex().w_full().p(5).bg(t.popover).text_size(12.8)
+      .child(item("Rename", "square-pen", () => run("space.rename", { id })))
+      .when(git != null, (el) => el
+        .child(worktree("New worktree", "new", 440, 260))
+        .child(worktree("Open worktree", "open", 560, 480)))
+      .when(git === "linked", (el) => el.child(worktree("Remove worktree", "remove", 440, 260)))
+      .child(div().mx(7).my(4).h(1).bg(t.border))
+      .child(item("Close", "x", () => run("space.close", { id })));
   }
 
   orderingDue(now) {
@@ -893,6 +914,7 @@ export default class Spaces extends View {
     if (props()?.agentMenu != null) return this.agentMenuPopup(t);
     if (props()?.closeAll != null) return this.closeAllPopup(t);
     if (props()?.ungroupedMenu != null) return this.ungroupedMenuPopup(t);
+    if (props()?.spaceMenu != null) return this.spaceMenuPopup(t);
     if (props()?.editTask != null) return this.editTaskPopup(t);
     const collapsed = narrow();
     // A task-menu "New space" ran space.new; assign the newly-appeared space to that task.
