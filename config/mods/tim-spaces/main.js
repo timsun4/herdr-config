@@ -67,7 +67,19 @@ export function tone(t, status) {
 
 export default class Spaces extends View {
   init(_props, cx) {
-    if (props()?.assign != null || props()?.taskMenu != null || props()?.agentMenu != null || props()?.closeTask != null) return; // bare overlay instances
+    if (props()?.editTask != null) { // the rename/label prompt is a bare overlay instance
+      const { id, field } = props().editTask;
+      const task = this.tasks().find((x) => x.id === id);
+      const value = field === "name" ? (task?.name ?? "") : (task?.tag ?? task?.name ?? "");
+      this.editInput = InputState.new({ value });
+      if (value) this.editInput.set_selected_range({ start: 0, end: value.length });
+      this.editInput.on("submit", (_e, cx) => this.commitEdit(cx));
+      this.handle = cx.focus_handle();
+      this.editInput.focus();
+      cx.timer.after(600, () => this.editInput.focus());
+      return;
+    }
+    if (props()?.assign != null || props()?.taskMenu != null || props()?.agentMenu != null || props()?.closeAll != null || props()?.ungroupedMenu != null) return; // bare overlay instances
     this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked }, null: not a repo
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
@@ -82,14 +94,10 @@ export default class Spaces extends View {
     this.born = {};
     this.pressed = null;
     this.over = null;
-    this.renaming = null;       // id of the task whose name is being edited
     this.taskDrag = null;       // id of the task being dragged to reorder
     this.taskOver = null;       // id of the task the drag is currently over
     this.spaceDropTask = null;  // id of the task/"__ungrouped__" a dragged space would drop into
     this.hoveredSpace = null;   // id of the space under the pointer (shows its "add to task" button)
-    this.renameState = InputState.new({ placeholder: "Task name" });
-    this.renameState.on("submit", (_e, cx) => this.commitRename(cx));
-    this.renameState.on("blur", (_e, cx) => this.commitRename(cx));
     this.scroll = ScrollHandle.new(); // the list's position: the active space is brought into view through it
     this.activeAt = -1; // the active space's place among the list's children (headers and rows), -1 when not drawn
     this.machines = [];
@@ -621,7 +629,7 @@ export default class Spaces extends View {
     this.saveTasks([...this.tasks(), { id, name, spaces: [] }]);
     return id;
   }
-  createTask(cx) { this.startRename(this.newTask(), "New task", cx); }
+  createTask() { this.editTask(this.newTask(), "name"); }
   deleteTask(id) { this.saveTasks(this.tasks().filter((task) => task.id !== id)); }
 
   // A space lives in at most one task; passing taskId null just unassigns it.
@@ -645,21 +653,37 @@ export default class Spaces extends View {
     this.saveTasks(list);
   }
 
-  startRename(id, name, cx) {
-    this.renaming = id;
-    this.renameState.set_value(name);
-    this.renameState.focus();
-    cx?.notify();
+  // Rename (task name) and Set label (pill text) share one prompt, same popup as space/agent rename.
+  editTask(id, field) {
+    openOverlay({ mod: "tim-spaces", kind: "dialog", width: 360, height: 200, props: { editTask: { id, field } } });
   }
-  commitRename(cx) {
-    if (this.renaming == null) return;
-    const text = (this.renameState.content()?.text ?? "").trim();
+  commitEdit() {
+    const { id, field } = props().editTask;
+    const text = (this.editInput.content()?.text ?? "").trim();
     const list = this.tasks();
-    const task = list.find((x) => x.id === this.renaming);
-    if (task && text && task.name !== text) { task.name = text; this.saveTasks(list); }
-    this.renaming = null;
-    if (shared("tim-spaces.renaming")) setShared("tim-spaces.renaming", null);
-    cx?.notify();
+    const task = list.find((x) => x.id === id);
+    if (task) {
+      if (field === "name") { if (text) task.name = text; } // a task always keeps a name
+      else task.tag = text || null;                         // empty label falls back to the name
+      this.saveTasks(list);
+    }
+    closeOverlay(props().overlay);
+  }
+  editTaskPopup(t) {
+    const field = props().editTask.field;
+    const button = (id, text, primary, action) => h_flex().id(id).h(32).px(14).items_center().rounded(8)
+      .border_1().border_color(primary ? t.solid : t.input).bg(primary ? t.solid : t.raised)
+      .text_color(primary ? t.solid_foreground : t.foreground).text_size(12.5).font_medium().cursor_pointer()
+      .hover((s) => s.opacity(0.88)).on_click(action).child(text);
+    return v_flex().id("task-edit").track_focus(this.handle)
+      .on_key_down((e, cx) => { if (e.key === "escape") { closeOverlay(props().overlay); cx.stop_propagation(); } })
+      .w_full().min_h(0).p(18).bg(t.popover).text_color(t.foreground)
+      .child(h_flex().items_center().child(div().flex_1().text_size(15).font_semibold().child(field === "name" ? "Rename task" : "Set label")).child(div().text_size(11).text_color(t.dim).child("Esc")))
+      .child(div().pt(16).pb(7).text_size(11.5).text_color(t.dim).child(field === "name" ? "Name" : "Label"))
+      .child(Input.new(this.editInput).h(36).px(10).rounded(9).border_1().border_color(t.accent).bg(t.background).text_size(12.8).text_color(t.foreground))
+      .child(h_flex().pt(20).gap(8).justify_end()
+        .child(button("te-cancel", "Cancel", false, () => closeOverlay(props().overlay)))
+        .child(button("te-save", "Save", true, () => this.commitEdit())));
   }
 
   // The "add to task" picker, opened from a space's hover button as a self overlay.
@@ -682,25 +706,24 @@ export default class Spaces extends View {
   }
 
   taskMenu(id) {
-    openOverlay({ mod: "tim-spaces", kind: "popup", width: 180, height: 150, props: { taskMenu: id } });
+    openOverlay({ mod: "tim-spaces", kind: "popup", width: 180, height: 182, props: { taskMenu: id } });
   }
-  closeAllTask(id) {
-    openOverlay({ mod: "tim-spaces", kind: "dialog", width: 320, height: 150, props: { closeTask: id } });
+  // One confirm, then close each listed space (ending its agents); for a task, also remove the task.
+  confirmCloseAll(title, spaces, task) {
+    openOverlay({ mod: "tim-spaces", kind: "dialog", width: 320, height: 150, props: { closeAll: { title, spaces, task } } });
   }
-  // One confirm for the whole task, then close each of its spaces (ending their agents) and empty the task.
   closeAllPopup(t) {
-    const id = props().closeTask;
-    const task = this.tasks().find((x) => x.id === id);
-    const n = task?.spaces.length ?? 0;
+    const { title, spaces, task } = props().closeAll;
+    const n = spaces.length;
     const confirm = () => {
-      const task = this.tasks().find((x) => x.id === id);
-      if (task) { for (const sid of task.spaces) run("space.close", { id: sid, confirmed: true }); this.deleteTask(id); }
+      for (const sid of spaces) run("space.close", { id: sid, confirmed: true });
+      if (task) this.deleteTask(task);
       closeOverlay(props().overlay);
     };
     const button = (bid, label, bg, fg, onClick) => h_flex().id(bid).h(32).px(14).items_center().rounded(8).bg(bg).text_color(fg).cursor_pointer().hover((s) => s.opacity(0.88)).on_click(onClick).child(label);
     return v_flex().size_full().min_h(0).p(18).gap(12).rounded(8).bg(t.popover).text_size(13)
-      .child(div().text_size(15).font_semibold().text_color(t.foreground).child(`Close all in ${task?.name ?? "task"}?`))
-      .child(div().flex_1().min_h(0).text_color(t.muted).child(`This closes ${n} space${n === 1 ? "" : "s"} (ending their agents) and removes the task.`))
+      .child(div().text_size(15).font_semibold().text_color(t.foreground).child(`${title}?`))
+      .child(div().flex_1().min_h(0).text_color(t.muted).child(`This closes ${n} space${n === 1 ? "" : "s"} (ending their agents)${task ? " and removes the task" : ""}.`))
       .child(h_flex().justify_end().gap(8).text_size(12)
         .child(button("cancel", "Cancel", t.raised, t.foreground, () => closeOverlay(props().overlay)))
         .child(button("confirm", "Close all", t.solid, t.solid_foreground, confirm)));
@@ -714,10 +737,11 @@ export default class Spaces extends View {
       .child(svg(`mods/workspace-chrome/${icon}.svg`).size(14).flex_none().text_color(danger ? t.blocked : t.muted))
       .child(div().flex_1().truncate().child(label));
     return v_flex().w_full().p(5).bg(t.popover).text_size(12.8)
-      .child(item("Rename", "square-pen", () => setShared("tim-spaces.renaming", id)))
+      .child(item("Rename", "square-pen", () => this.editTask(id, "name")))
+      .child(item("Set label", "file-text", () => this.editTask(id, "tag")))
       .child(item("New space", "plus", () => { const before = spaces().map((s) => s.id); run("space.new"); setShared("tim-spaces.newInTask", { task: id, before, at: Date.now() }); }))
       .child(div().mx(7).my(4).h(1).bg(t.border))
-      .child(item("Close all", "x", () => this.closeAllTask(id)))
+      .child(item("Close all", "x", () => { const task = this.tasks().find((x) => x.id === id); if (task) this.confirmCloseAll(`Close all in ${task.name}`, task.spaces, id); }))
       .child(item("Close task", "x", () => this.deleteTask(id)));
   }
 
@@ -739,10 +763,12 @@ export default class Spaces extends View {
       .child(item("Close", "x", () => run("pane.close", { pane })));
   }
 
-  // A task's header: fold chevron, name (click to rename), count, delete; drag to reorder, drop a space to add it.
+  // A task's header: name/label pill, space count, fold chevron; drag to reorder, drop a space to add it.
   taskHeader(task, t) {
     const folded = this.foldedSpaces.has(task.id);
-    const renaming = this.renaming === task.id;
+    const tagText = task.tag || task.name;
+    const pill = h_flex().flex_initial().min_w(0).max_w(190).px(7).h(18).rounded(9).bg(t.solid).items_center()
+      .text_size(10.5).font_bold().text_color(t.solid_foreground).child(div().min_w(0).truncate().child(tagText));
     const dropHere = this.pressed !== null && this.spaceDropTask === task.id;
     const reorderHere = this.taskDrag !== null && this.taskDrag !== task.id && this.taskOver === task.id;
     const chevron = div()
@@ -751,15 +777,6 @@ export default class Spaces extends View {
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click((_e, cx) => { this.toggleFold(task.id); cx.notify(); })
       .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none());
-    const del = div()
-      .id(`taskdel-${task.id}`).flex_none().p(2).rounded(4).text_color(t.dim).cursor_pointer()
-      .hover((s) => s.bg(t.hover).text_color(t.blocked)).tooltip("Close task (its spaces move to Ungrouped)")
-      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .on_click((_e, cx) => { this.deleteTask(task.id); cx.notify(); })
-      .child(svg("mods/workspace-chrome/x.svg").size(12));
-    const label = renaming
-      ? h_flex().flex_1().min_w(0).child(Input.new(this.renameState))
-      : div().flex_1().min_w(0).truncate().text_color(t.foreground).child(task.name);
     return h_flex()
       .id(`task-${task.id}`).relative()
       .px(8).h(30).mt(6).flex_none().gap(6).items_center().rounded(8)
@@ -768,7 +785,7 @@ export default class Spaces extends View {
       .when(dropHere, (el) => el.bg(t.accent + "22").border_1().border_color(t.accent))
       .when(!dropHere, (el) => el.hover((s) => s.bg(t.hover)))
       .when(reorderHere, (el) => el.child(div().absolute().left(0).right(0).top(0).h(2).bg(t.accent)))
-      .on_mouse_down("left", () => { if (!renaming) { this.taskDrag = task.id; this.taskOver = task.id; } })
+      .on_mouse_down("left", () => { this.taskDrag = task.id; this.taskOver = task.id; })
       .on_mouse_move((_e, cx) => {
         if (this.taskDrag !== null) { if (this.taskOver !== task.id) { this.taskOver = task.id; cx.notify(); } }
         else if (this.pressed !== null) { if (this.spaceDropTask !== task.id) { this.spaceDropTask = task.id; cx.notify(); } }
@@ -782,17 +799,37 @@ export default class Spaces extends View {
         cx.notify();
       })
       .on_mouse_down("right", () => this.taskMenu(task.id))
-      .child(chevron)
-      .child(label)
-      .when(!renaming, (el) => el.child(h_flex().flex_none().min_w(20).px(6).h(18).rounded(9).bg(t.raised).items_center().justify_center()
+      .child(pill)
+      .child(div().flex_1())
+      .child(h_flex().flex_none().min_w(20).px(6).h(18).rounded(9).bg(t.raised).items_center().justify_center()
         .text_size(10.5).font_medium().text_color(t.dim).tooltip(`${task.spaces.length} space${task.spaces.length === 1 ? "" : "s"}`)
-        .child(String(task.spaces.length))))
-      .when(!renaming, (el) => el.child(del));
+        .child(String(task.spaces.length)))
+      .child(chevron);
   }
 
-  ungroupedHeader(t) {
+  ungroupedMenu(ids) {
+    openOverlay({ mod: "tim-spaces", kind: "popup", width: 180, height: 52, props: { ungroupedMenu: ids } });
+  }
+  ungroupedMenuPopup(t) {
+    const ids = props().ungroupedMenu;
+    return v_flex().w_full().p(5).bg(t.popover).text_size(12.8)
+      .child(h_flex().id("ungroupedmenu-closeall").h(31).px(8).gap(9).rounded(7).items_center().cursor_pointer()
+        .text_color(t.foreground).hover((el) => el.bg(t.hover))
+        .on_click((_e, cx) => { this.confirmCloseAll("Close all ungrouped", ids, null); closeOverlay(props().overlay); })
+        .child(svg("mods/workspace-chrome/x.svg").size(14).flex_none().text_color(t.muted))
+        .child(div().flex_1().truncate().child("Close all")));
+  }
+  // Like a task header, but Ungrouped isn't a task: an outlined pill, count, fold chevron; right-click menu to close all.
+  ungroupedHeader(t, ids) {
     const folded = this.foldedSpaces.has("__ungrouped__");
     const dropHere = this.pressed !== null && this.spaceDropTask === "__ungrouped__";
+    const pill = h_flex().flex_none().px(7).h(18).rounded(9).border_1().border_color(t.border).items_center()
+      .text_size(10.5).font_bold().text_color(t.dim).child("Ungrouped");
+    const chevron = div().id("ungrouped-fold").flex_none().p(2).rounded(4).text_color(t.dim).cursor_pointer()
+      .hover((s) => s.bg(t.hover).text_color(t.foreground))
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => { this.toggleFold("__ungrouped__"); cx.notify(); })
+      .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none());
     return h_flex()
       .id("task-ungrouped").relative()
       .px(8).h(28).mt(6).flex_none().gap(6).items_center().rounded(8)
@@ -800,11 +837,13 @@ export default class Spaces extends View {
       .when(dropHere, (el) => el.bg(t.accent + "22").border_1().border_color(t.accent))
       .on_mouse_move((_e, cx) => { if (this.pressed !== null && this.spaceDropTask !== "__ungrouped__") { this.spaceDropTask = "__ungrouped__"; cx.notify(); } })
       .on_mouse_up("left", (_e, cx) => { if (this.pressed !== null) this.assignSpaceToTask(this.pressed, null); this.taskDrag = this.taskOver = this.spaceDropTask = this.pressed = this.over = null; cx.notify(); })
-      .child(div().id("ungrouped-fold").flex_none().p(2).rounded(4).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground))
-        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-        .on_click((_e, cx) => { this.toggleFold("__ungrouped__"); cx.notify(); })
-        .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none()))
-      .child(div().flex_1().child("Ungrouped"));
+      .on_mouse_down("right", () => this.ungroupedMenu(ids))
+      .child(pill)
+      .child(div().flex_1())
+      .child(h_flex().flex_none().min_w(20).px(6).h(18).rounded(9).bg(t.raised).items_center().justify_center()
+        .text_size(10.5).font_medium().text_color(t.dim).tooltip(`${ids.length} space${ids.length === 1 ? "" : "s"}`)
+        .child(String(ids.length)))
+      .child(chevron);
   }
 
   // Spaces grouped under tasks (wide only). Worktrees ride with their main space; a task holds main spaces.
@@ -840,7 +879,7 @@ export default class Spaces extends View {
     }
     const ungrouped = mainOrder.filter((id) => !assigned.has(id));
     if (ungrouped.length) {
-      out.push(this.ungroupedHeader(t));
+      out.push(this.ungroupedHeader(t, ungrouped));
       if (!this.foldedSpaces.has("__ungrouped__")) pushBlocks(ungrouped);
     }
     this.activeAt = activeOffset;
@@ -852,15 +891,10 @@ export default class Spaces extends View {
     if (props()?.assign != null) return this.assignPopup(t);
     if (props()?.taskMenu != null) return this.taskMenuPopup(t);
     if (props()?.agentMenu != null) return this.agentMenuPopup(t);
-    if (props()?.closeTask != null) return this.closeAllPopup(t);
+    if (props()?.closeAll != null) return this.closeAllPopup(t);
+    if (props()?.ungroupedMenu != null) return this.ungroupedMenuPopup(t);
+    if (props()?.editTask != null) return this.editTaskPopup(t);
     const collapsed = narrow();
-    // The right-click menu lives in its own overlay; it asks for a rename through shared state, picked up here.
-    const wantRename = shared("tim-spaces.renaming");
-    if (wantRename && this.renaming !== wantRename) {
-      const task = this.tasks().find((x) => x.id === wantRename);
-      if (task) this.startRename(task.id, task.name);
-      else setShared("tim-spaces.renaming", null);
-    }
     // A task-menu "New space" ran space.new; assign the newly-appeared space to that task.
     // shortcut: takes the first space absent when the menu ran; gives up after 5s if none appears.
     const newInTask = shared("tim-spaces.newInTask");
