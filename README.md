@@ -7,7 +7,7 @@ and the `/edit-herdr` Claude Code command — packaged so I can reuse it on any 
 
 | File | What it does |
 |---|---|
-| `config/layouts/tim-test.json` | Working layout (clone of the default `main`). Sidebar uses `tim-spaces`; top bar uses `tim-tabs`. |
+| `config/layouts/Tim-Herdr.json` | Working layout (clone of the default `main`). Sidebar uses `tim-spaces`; top bar uses `tim-tabs`. |
 | `config/mods/tim-spaces/` | Left sidebar. Adds a **Task** concept above spaces (collapsible, renamable via right-click, drag + right-click to assign spaces, space-count badge); nests each space's agents under it; collapsible subtrees. |
 | `config/mods/tim-tabs/` | Top bar. Adds **GitHub** (opens the space's repo from its git remote) and **Jira** (opens the parent Task's card, prompts once, right-click to edit) buttons beside Files/Changes. |
 | `config/keys.json` | Keybindings. Includes the terminal Ctrl+Left / Ctrl+Right word-jump fix for PowerShell (PSReadLine). |
@@ -29,10 +29,10 @@ then copies the files into `~/.config/herdr-app/` and `~/.claude/commands/`. her
 so no restart is needed. Then switch to the layout:
 
 ```powershell
-herdr-app do layout.switch --name tim-test
+herdr-app do layout.switch --name Tim-Herdr
 ```
 
-(or press **Ctrl+Shift+L** in herdr and pick `tim-test`).
+(or press **Ctrl+Shift+L** in herdr and pick `Tim-Herdr`).
 
 ### Manual install
 Copy `config/*` into `~/.config/herdr-app/` and `claude/commands/edit-herdr.md` into

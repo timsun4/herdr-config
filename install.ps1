@@ -16,7 +16,7 @@ if (-not (Test-Path $herdr)) { throw "herdr-app config not found at $herdr - sta
 # Files this recipe will drop in (relative to the herdr-app config root).
 $targets = @(
   "keys.json",
-  "layouts\tim-test.json",
+  "layouts\Tim-Herdr.json",
   "mods\tim-spaces",
   "mods\tim-tabs"
 )
@@ -40,5 +40,5 @@ Copy-Item (Join-Path $repo "claude\commands\edit-herdr.md") $cmds -Force
 
 Write-Host "installed recipe into $herdr"
 Write-Host "installed edit-herdr command into $cmds"
-Write-Host "`nSwitch to the layout with:  herdr-app do layout.switch --name tim-test"
-Write-Host "(or press Ctrl+Shift+L in herdr and pick tim-test)"
+Write-Host "`nSwitch to the layout with:  herdr-app do layout.switch --name Tim-Herdr"
+Write-Host "(or press Ctrl+Shift+L in herdr and pick Tim-Herdr)"

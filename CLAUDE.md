@@ -36,7 +36,7 @@ herdr-app do layout.clone --name main --as <my-layout>   # also switches to it
 herdr-app do mod.clone    --name <mod>  --as <my-mod>     # then point the layout's content.mod at it
 ```
 
-This recipe's clones: layout **`tim-test`** (from `main`), mods **`tim-spaces`** (from `spaces`),
+This recipe's clones: layout **`Tim-Herdr`** (from `main`), mods **`tim-spaces`** (from `spaces`),
 **`tim-tabs`** (from `tabs`). It still references herdr's shipped mods (`workspace-chrome`, `pane`,
 `files`, `changes`, `workspace-status`), which exist on every device and aren't bundled here.
 

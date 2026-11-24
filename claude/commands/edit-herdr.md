@@ -41,11 +41,11 @@ herdr-app do mod.clone    --name <mod>  --as <my-mod>     # then point layout's 
 ```
 
 ### The user's existing live workspace (edit these for live results, not `main`)
-- Layout: **`tim-test`** (clone of `main`) — their working layout.
+- Layout: **`Tim-Herdr`** (clone of `main`) — their working layout.
 - Mod: **`tim-spaces`** (clone of `spaces`) — shows each space's agents nested under it.
 - Frozen reference copy of the default: `C:\Users\tim.sun\OneDrive - Veterans United Home Loans\herdr`
 
-If the user doesn't name a layout, assume they mean `tim-test`. Ask before touching
+If the user doesn't name a layout, assume they mean `Tim-Herdr`. Ask before touching
 `main` or any shipped file.
 
 ## Edit loop
