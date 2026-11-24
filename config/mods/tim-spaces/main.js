@@ -67,7 +67,7 @@ export function tone(t, status) {
 
 export default class Spaces extends View {
   init(_props, cx) {
-    if (props()?.assign != null || props()?.taskMenu != null || props()?.agentMenu != null) return; // bare overlay instances
+    if (props()?.assign != null || props()?.taskMenu != null || props()?.agentMenu != null || props()?.closeTask != null) return; // bare overlay instances
     this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked }, null: not a repo
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
@@ -679,7 +679,28 @@ export default class Spaces extends View {
   }
 
   taskMenu(id) {
-    openOverlay({ mod: "tim-spaces", kind: "popup", width: 180, height: 120, props: { taskMenu: id } });
+    openOverlay({ mod: "tim-spaces", kind: "popup", width: 180, height: 150, props: { taskMenu: id } });
+  }
+  closeAllTask(id) {
+    openOverlay({ mod: "tim-spaces", kind: "dialog", width: 320, height: 150, props: { closeTask: id } });
+  }
+  // One confirm for the whole task, then close each of its spaces (ending their agents) and empty the task.
+  closeAllPopup(t) {
+    const id = props().closeTask;
+    const task = this.tasks().find((x) => x.id === id);
+    const n = task?.spaces.length ?? 0;
+    const confirm = () => {
+      const task = this.tasks().find((x) => x.id === id);
+      if (task) { for (const sid of task.spaces) run("space.close", { id: sid, confirmed: true }); this.deleteTask(id); }
+      closeOverlay(props().overlay);
+    };
+    const button = (bid, label, bg, fg, onClick) => h_flex().id(bid).h(32).px(14).items_center().rounded(8).bg(bg).text_color(fg).cursor_pointer().hover((s) => s.opacity(0.88)).on_click(onClick).child(label);
+    return v_flex().size_full().min_h(0).p(18).gap(12).rounded(8).bg(t.popover).text_size(13)
+      .child(div().text_size(15).font_semibold().text_color(t.foreground).child(`Close all in ${task?.name ?? "task"}?`))
+      .child(div().flex_1().min_h(0).text_color(t.muted).child(`This closes ${n} space${n === 1 ? "" : "s"} (ending their agents) and removes the task.`))
+      .child(h_flex().justify_end().gap(8).text_size(12)
+        .child(button("cancel", "Cancel", t.raised, t.foreground, () => closeOverlay(props().overlay)))
+        .child(button("confirm", "Close all", t.solid, t.solid_foreground, confirm)));
   }
   taskMenuPopup(t) {
     const id = props().taskMenu;
@@ -693,7 +714,8 @@ export default class Spaces extends View {
       .child(item("Rename", "square-pen", () => setShared("tim-spaces.renaming", id)))
       .child(item("New space", "plus", () => { const before = spaces().map((s) => s.id); run("space.new"); setShared("tim-spaces.newInTask", { task: id, before, at: Date.now() }); }))
       .child(div().mx(7).my(4).h(1).bg(t.border))
-      .child(item("Delete task", "x", () => this.deleteTask(id)));
+      .child(item("Close all", "x", () => this.closeAllTask(id)))
+      .child(item("Close task", "x", () => this.deleteTask(id)));
   }
 
   // Right-click an agent: a 2-item menu. Rename acts on the tab (what the row's label shows); Close ends this agent's pane.
@@ -728,7 +750,7 @@ export default class Spaces extends View {
       .child(svg(`mods/workspace-chrome/chevron-${folded ? "right" : "down"}.svg`).size(12).flex_none());
     const del = div()
       .id(`taskdel-${task.id}`).flex_none().p(2).rounded(4).text_color(t.dim).cursor_pointer()
-      .hover((s) => s.bg(t.hover).text_color(t.blocked)).tooltip("Delete task (its spaces move to Ungrouped)")
+      .hover((s) => s.bg(t.hover).text_color(t.blocked)).tooltip("Close task (its spaces move to Ungrouped)")
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click((_e, cx) => { this.deleteTask(task.id); cx.notify(); })
       .child(svg("mods/workspace-chrome/x.svg").size(12));
@@ -825,6 +847,7 @@ export default class Spaces extends View {
     if (props()?.assign != null) return this.assignPopup(t);
     if (props()?.taskMenu != null) return this.taskMenuPopup(t);
     if (props()?.agentMenu != null) return this.agentMenuPopup(t);
+    if (props()?.closeTask != null) return this.closeAllPopup(t);
     const collapsed = narrow();
     // The right-click menu lives in its own overlay; it asks for a rename through shared state, picked up here.
     const wantRename = shared("tim-spaces.renaming");
