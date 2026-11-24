@@ -571,8 +571,11 @@ export default class Spaces extends View {
         this.pressed = null;
         this.over = null;
         if (from !== null && over === w.id && from !== w.id) {
-          const index = spaces().findIndex(s => s.id === w.id);
-          if (index !== -1) run("space.move", { id: from, index: index + 1 });
+          const fromTask = this.spaceTask?.get(from) ?? null;
+          const toTask = this.spaceTask?.get(w.id) ?? null;
+          // In the task view, dropping onto a row in another group moves the space into that group.
+          if (this.tasks().length && fromTask !== toTask) this.assignSpaceToTask(from, toTask);
+          else { const index = spaces().findIndex(s => s.id === w.id); if (index !== -1) run("space.move", { id: from, index: index + 1 }); }
         } else if (from === w.id) run("space.select", { id: w.id });
         cx.notify();
       })
@@ -827,6 +830,8 @@ export default class Spaces extends View {
       out.push(...res.items);
     };
     const tasks = this.tasks();
+    this.spaceTask = new Map();
+    for (const task of tasks) for (const sid of task.spaces) this.spaceTask.set(sid, task.id);
     if (!tasks.length) { pushBlocks(mainOrder); this.activeAt = activeOffset; return out; }
     const assigned = new Set(tasks.flatMap((task) => task.spaces));
     for (const task of tasks) {
