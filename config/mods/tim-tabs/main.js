@@ -110,6 +110,11 @@ export default class Tabs extends View {
     const tabs = new Set((space.tabs ?? []).map((c) => c.id));
     return panes().find((p) => tabs.has(p.tab) && p.cwd)?.cwd || space.folder;
   }
+  openFolder(space) {
+    const cwd = this.spaceCwd(space);
+    // explorer wants backslashes; a pane's cwd can come through with forward slashes.
+    if (cwd) exec("explorer", [cwd.replace(/\//g, "\\")]).catch(() => {});
+  }
   // The Task the given space belongs to (tasks live in the tim-spaces mod's shared state).
   taskOf(spaceId) {
     const list = shared("tim-spaces.tasks");
@@ -211,6 +216,9 @@ export default class Tabs extends View {
       .when(enabled, (el) => el.hover((s) => s.bg(t.hover).text_color(t.foreground)).on_mouse_down("left", stop).on_click(onClick)
         .when(Boolean(onRight), (e2) => e2.on_mouse_down("right", onRight)))
       .child(svg(icon).size(14)).child(text);
+    const folderBtn = actionBtn("open-folder", "mods/workspace-chrome/folder.svg", "Folder", !space.machine,
+      space.machine ? "This folder is on another machine" : "Open this folder in File Explorer",
+      () => this.openFolder(space));
     const ghBtn = actionBtn("open-github", "mods/workspace-chrome/git-branch.svg", "GitHub", true,
       "Open the repository on GitHub", (_e, cx) => this.openGithub(space, cx));
     const jiraBtn = actionBtn("open-jira", "mods/workspace-chrome/file-text.svg", "Jira", Boolean(task),
@@ -226,7 +234,7 @@ export default class Tabs extends View {
       .child(button("tab-new", "+", () => openOverlay({ mod: "new-menu", kind: "popup", width: 250, height: 512 })))
       .when(enabled.includes("files"), el => el.child(panelButton("files", "Files", "mods/files/file.svg")))
       .when(enabled.includes("changes"), el => el.child(panelButton("changes", "Changes", "mods/changes/changes.svg")))
-      .when(Boolean(space), el => el.child(ghBtn).child(jiraBtn))
+      .when(Boolean(space), el => el.child(folderBtn).child(ghBtn).child(jiraBtn))
       .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/tim-tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))
         .child(button("maximize", w.platform === "windows" ? svg(`mods/tim-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))
         .child(button("close-window", w.platform === "windows" ? svg("mods/tim-tabs/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), () => run("window.close"))));
